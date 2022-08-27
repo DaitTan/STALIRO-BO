@@ -10,13 +10,11 @@ numpy = "^1.22.4"
 scikit-learn = "^1.1.1"
 scipy = "^1.8.1"
 scikit-optimize = "^0.9.0"
-unittest = "^0.0"
 coverage = "^6.4"
 matplotlib = "^3.5.2"
 treelib = "^1.6.1"
 pandas = "^1.4.3"
 pathos = "^0.2.9"
-psy-taliro = {git = "https://gitlab.com/sbtg/psy-taliro", rev = "v1.0.0b6"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

@@ -5,6 +5,7 @@ import numpy as np
 from bo import BO
 from bo.bayesianOptimization import InternalBO
 from bo.gprInterface import InternalGPR
+from kubernetes import client, config
 from numpy.typing import NDArray
 from staliro.models import (ModelData, SignalTimes, SignalValues, StaticInput,
                             blackbox)
@@ -14,16 +15,11 @@ from staliro.staliro import staliro
 from staliro.signals import delayed, pchip, harmonic
 
 from job_helper import JobHelper
+from kubernetes_utils import create_job_object, create_job, get_job_status
 
-benchmark_name = 'uav_v3_security_exp01'
-results_directory = pathlib.Cwd().joinpath('results', benchmark_name)
+benchmark_name = 'uav-v3-security-exp01'
+results_directory = pathlib.Path().cwd().joinpath('results', benchmark_name)
 results_directory.mkdir(parents=True, exist_ok=True)
-
-_job_helper = JobHelper(
-    mongo_host='en4202145l.cidse.dhcp.asu.edu',
-    rabbitmq_host='amqp://guest:guest@rabbitmq-service:5672',
-    queue_name='uav_v3_jobs'
-)
 
 params = {
     "step" : 0.01, # Time step
@@ -52,10 +48,32 @@ params = {
     "num_bo_samples" : 100,
 }
 
+# Setup the experiments
+_job_helper = JobHelper(
+    mongo_host='10.218.101.19',
+    rabbitmq_host='amqp://guest:guest@10.107.254.193:5672',
+    queue_name='uav_v3_jobs'
+)
+
+config.load_kube_config()
+kubernetes_client = client.BatchV1Api()
+
+kubernetes_job_object = create_job_object(
+    job_name=benchmark_name,
+    completions=params['runs'] * (params['num_uniform_samples'] + params['num_bo_samples']),
+    parallelism=10,
+    queue_name='uav_v3_jobs',
+    container_image='aniruddhchandratre/uav_v3:latest'
+)
+
+create_job(kubernetes_client, kubernetes_job_object, benchmark_name)
+
+
 @blackbox(sampling_interval = params["step"])
 def uav_model(static: StaticInput, times: SignalTimes, signals: SignalValues) -> ModelData[NDArray[np.float_], None]:
+    print("Creating simulation")
     job_id = _job_helper.create_job(static, times, signals, params)
-    trajectories, timestamps = _job_helper.get_result(job_id)
+    trajectories, timestamps = _job_helper.get_job_result(job_id)
     
     trajectories = np.array(trajectories)
     timestamps = np.array(timestamps)

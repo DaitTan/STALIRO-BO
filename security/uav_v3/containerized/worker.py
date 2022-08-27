@@ -8,22 +8,20 @@ import uav_v3_model_seeded
 
 from pymongo import MongoClient
 
-parameters = json.loads(sys.stdin.readlines()[0])
 mongo_client = MongoClient('en4202145l.cidse.dhcp.asu.edu', 27017)
 database = mongo_client.simulations
 collection = database.results
 
-print("Working on {}".format(parameters['id']))
-
 def process(parameters):
+    print("Processing {}".format(parameters['id']))
     static = parameters['static']
-    times = parameters['times']
+    times = np.array(parameters['times'])
     params = parameters['params']
-    signals = parameters['signals']
+    signals = np.array(parameters['signals'])
     
     sims = 100
 
-    if static.size > 0:
+    if len(static) > 0:
         param1 = static[0]
     else:
         param1 = 1.0
@@ -66,3 +64,6 @@ def process(parameters):
     
     print("Done with {}".format(parameters['id']))
 
+if __name__ == "__main__":
+    parameters = json.loads(sys.stdin.readlines()[0])
+    process(parameters)
