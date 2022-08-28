@@ -27,9 +27,11 @@ class JobHelper:
     def __connect_to_queue(self):
         print('Connecting to RabbitMQ at {}'.format(self.rabitmq_host))
         params = pika.URLParameters(self.rabitmq_host)
-        params.socket_timeout = 10
+        params.socket_timeout = 120
+        params.heartbeat = 0
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
+        self.channel.queue_delete(queue=self.queue_name)
         self.channel.queue_declare(queue=self.queue_name)
         print('Connected to RabbitMQ')
         
@@ -44,9 +46,13 @@ class JobHelper:
             'params': params
         }
         
-        parameters_json_string = json.dumps(parameters)
+        self.collection.insert_one({
+            'id': unique_id,
+            'parameters': parameters,
+            'status': 'created',
+        })
         
-        self.channel.basic_publish(exchange='', routing_key=self.queue_name, body=parameters_json_string)
+        self.channel.basic_publish(exchange='', routing_key=self.queue_name, body=unique_id)
         print('Created job with id {}'.format(unique_id))
         return unique_id
     
@@ -56,9 +62,15 @@ class JobHelper:
         result = self.collection.find_one({'id': unique_id})
         
         while result is None:
-            result = self.collection.find_one({'id': unique_id})
+            result = self.collection.find_one({'id': unique_id}, {'id': 1, 'status': 1})
             time.sleep(1)
         
-        print('Got result for job with id {}'.format(unique_id))
+        status = result['status']
+        while status != 'done':
+            status = self.collection.find_one({'id': unique_id}, {'id': 1, 'status': 1})['status']
+            time.sleep(1)
+            
+        result = self.collection.find_one({'id': unique_id}, {'trajectories': 1, 'timestamps': 1, 'id': 1, 'status': 1, 'pod_hostname': 1})
+        print('Got result for job with id {}, completed on {}'.format(unique_id, result['pod_hostname']))
         return result['trajectories'], result['timestamps']
         
